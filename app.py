@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 # --- Configuration ---
 VIDEO_1_PATH = "video_1.mp4"
 VIDEO_2_PATH = "video_2.mp4"
-VIDEO_DURATION_SECONDS = 6.0  # Manually set the duration of the relevant action
+VIDEO_DURATION_SECONDS = 6.0  # Must be a float
 FPS = 30 # Frames per second for data generation and playback simulation
 
 # --- Data Generation ---
@@ -78,7 +78,7 @@ if st.sidebar.button("▶️ Play" if not st.session_state.play else "⏸️ Pau
 if st.sidebar.button("🔄 Reset"):
     st.session_state.play = False
     st.session_state.time = 0.0
-    st.experimental_rerun()
+    st.rerun() # Formerly st.experimental_rerun()
 
 time_slider = st.sidebar.slider("Timeline (seconds)", 0.0, VIDEO_DURATION_SECONDS, st.session_state.time, 0.01)
 if time_slider != st.session_state.time:
@@ -149,19 +149,14 @@ with main_cols[1]:
     metric_cols[0].metric("Left Ankle Angle", f"{current_data_point['Left Ankle Dorsiflexion']:.1f}°")
     metric_cols[1].metric("Right Ankle Angle", f"{current_data_point['Right Ankle Dorsiflexion']:.1f}°")
 
-# --- Playback Loop (CORRECTED LOGIC) ---
+# --- Playback Loop ---
 if st.session_state.play:
-    # If we are at the end, stop playing
     if st.session_state.time >= VIDEO_DURATION_SECONDS:
         st.session_state.play = False
     else:
-        # Increment time
         time_increment = 1 / FPS
         st.session_state.time += time_increment
-        
-        # Clamp the value to the maximum to prevent slider errors
         st.session_state.time = min(st.session_state.time, VIDEO_DURATION_SECONDS)
 
-    # Small delay for smooth animation and rerun
     time.sleep(0.01)
-    st.experimental_rerun()
+    st.rerun() # Formerly st.experimental_rerun()
