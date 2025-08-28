@@ -42,17 +42,18 @@ def get_ai_insights(t):
     elif 1.5 <= cycle_time < 2.0: return {"title": "Right Swing Phase", "finding": "Right leg is now in swing. Hip flexion is increasing towards its peak.", "status": "Normal"}
     else: return {"title": "Overall Assessment", "finding": "Gait pattern appears stable and rhythmic. Cadence is estimated at ~110 steps/minute.", "status": "Stable"}
 
-# --- Video Frame Extraction ---
-@st.cache_data
-def get_video_frames(video_path):
+# --- MEMORY-EFFICIENT FRAME EXTRACTION ---
+# This function seeks to a specific time, reads one frame, and releases.
+# It uses minimal memory, preventing crashes on Streamlit Cloud.
+def get_frame_at_time(video_path, time_sec):
     cap = cv2.VideoCapture(video_path)
-    frames = []
-    while True:
-        ret, frame = cap.read()
-        if not ret: break
-        frames.append(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+    # Set the time position in milliseconds
+    cap.set(cv2.CAP_PROP_POS_MSEC, time_sec * 1000)
+    ret, frame = cap.read()
     cap.release()
-    return frames
+    if ret:
+        return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    return None
 
 # --- Main Application ---
 st.set_page_config(layout="wide", page_title="Gait Analysis Dashboard")
@@ -66,11 +67,6 @@ st.title("🏃‍♂️ Real-Time Gait Analysis Dashboard")
 if 'play' not in st.session_state: st.session_state.play = False
 if 'time' not in st.session_state: st.session_state.time = 0.0
 
-frames1 = get_video_frames(VIDEO_1_PATH)
-frames2 = get_video_frames(VIDEO_2_PATH)
-num_frames = min(len(frames1), len(frames2))
-actual_fps = num_frames / VIDEO_DURATION_SECONDS if VIDEO_DURATION_SECONDS > 0 else 30
-
 st.sidebar.header("Controls")
 if st.sidebar.button("▶️ Play" if not st.session_state.play else "⏸️ Pause"):
     st.session_state.play = not st.session_state.play
@@ -78,7 +74,7 @@ if st.sidebar.button("▶️ Play" if not st.session_state.play else "⏸️ Pau
 if st.sidebar.button("🔄 Reset"):
     st.session_state.play = False
     st.session_state.time = 0.0
-    st.rerun() # Formerly st.experimental_rerun()
+    st.rerun()
 
 time_slider = st.sidebar.slider("Timeline (seconds)", 0.0, VIDEO_DURATION_SECONDS, st.session_state.time, 0.01)
 if time_slider != st.session_state.time:
@@ -93,14 +89,23 @@ main_cols = st.columns([2, 1])
 
 with main_cols[0]:
     vid_cols = st.columns(2)
-    frame_index = min(int(st.session_state.time * actual_fps), num_frames - 1)
     
+    # Get frames on-demand instead of pre-loading
+    frame1 = get_frame_at_time(VIDEO_1_PATH, st.session_state.time)
+    frame2 = get_frame_at_time(VIDEO_2_PATH, st.session_state.time)
+
     with vid_cols[0]:
         st.subheader("Original Video")
-        st.image(frames1[frame_index])
+        if frame1 is not None:
+            st.image(frame1)
+        else:
+            st.warning("Could not load frame from original video.")
     with vid_cols[1]:
         st.subheader("3D Motion Overlay")
-        st.image(frames2[frame_index])
+        if frame2 is not None:
+            st.image(frame2)
+        else:
+            st.warning("Could not load frame from 3D overlay video.")
 
     st.markdown("---")
     st.subheader("Joint Angle Plots")
@@ -158,5 +163,5 @@ if st.session_state.play:
         st.session_state.time += time_increment
         st.session_state.time = min(st.session_state.time, VIDEO_DURATION_SECONDS)
 
-    time.sleep(0.01)
-    st.rerun() # Formerly st.experimental_rerun()
+    time.sleep(0.02) # A slightly longer sleep can sometimes help stability
+    st.rerun()
