@@ -12,7 +12,7 @@ st.set_page_config(
     page_title="Gait Analysis Dashboard"
 )
 
-# Custom CSS to set background and ensure text is readable
+# Custom CSS to set background and ensure all text is readable
 st.markdown("""
     <style>
     /* Main background color for the app */
@@ -26,12 +26,14 @@ st.markdown("""
     }
 
     /* --- TEXT COLOR OVERRIDE --- */
-    /* This is the key fix: Force all text to be a dark color */
-    body, h1, h2, h3, h4, h5, h6, p, li, label, .st-emotion-cache-16txtl3 {
+    /* This is the key fix: Force all text, including metrics, to be a dark color */
+    body, h1, h2, h3, h4, h5, h6, p, li, label, .st-emotion-cache-16txtl3,
+    [data-testid="stMetricLabel"], 
+    [data-testid="stMetricValue"] {
         color: #262730 !important; /* A standard dark grey for text */
     }
 
-    /* You can optionally style the main title differently */
+    /* Style the main title differently */
     [data-testid="stTitle"] {
         color: #1a5276 !important; /* A deep blue for the main title */
     }
@@ -172,5 +174,5 @@ if st.session_state.play:
         st.session_state.time += time_increment
         st.session_state.time = min(st.session_state.time, VIDEO_DURATION_SECONDS)
 
-    time.sleep(0.02)
+    time.sleep(0.01)
     st.rerun()
