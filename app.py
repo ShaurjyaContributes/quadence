@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 # --- Configuration ---
 VIDEO_1_PATH = "video_1.mp4"
 VIDEO_2_PATH = "video_2.mp4"
-VIDEO_DURATION_SECONDS = 6  # Manually set the duration of the relevant action
+VIDEO_DURATION_SECONDS = 6.0  # Manually set the duration of the relevant action
 FPS = 30 # Frames per second for data generation and playback simulation
 
 # --- Data Generation ---
