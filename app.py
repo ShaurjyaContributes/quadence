@@ -174,5 +174,5 @@ if st.session_state.play:
         st.session_state.time += time_increment
         st.session_state.time = min(st.session_state.time, VIDEO_DURATION_SECONDS)
 
-    time.sleep(0.01)
+    time.sleep(0.02)
     st.rerun()
