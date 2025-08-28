@@ -12,16 +12,28 @@ st.set_page_config(
     page_title="Gait Analysis Dashboard"
 )
 
-# Custom CSS to inject for simple theming
+# Custom CSS to set background and ensure text is readable
 st.markdown("""
     <style>
-    /* Main background color */
+    /* Main background color for the app */
     [data-testid="stAppViewContainer"] {
         background-color: #F0F2F6;
     }
-    /* Change sidebar background to white */
+
+    /* Sidebar background */
     [data-testid="stSidebar"] {
         background-color: #FFFFFF;
+    }
+
+    /* --- TEXT COLOR OVERRIDE --- */
+    /* This is the key fix: Force all text to be a dark color */
+    body, h1, h2, h3, h4, h5, h6, p, li, label, .st-emotion-cache-16txtl3 {
+        color: #262730 !important; /* A standard dark grey for text */
+    }
+
+    /* You can optionally style the main title differently */
+    [data-testid="stTitle"] {
+        color: #1a5276 !important; /* A deep blue for the main title */
     }
     </style>
     """, unsafe_allow_html=True)
