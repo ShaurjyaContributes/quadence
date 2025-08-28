@@ -6,13 +6,72 @@ import time
 import os
 import matplotlib.pyplot as plt
 
-# --- Configuration ---
+# --- Page Configuration ---
+st.set_page_config(
+    layout="wide",
+    page_title="Gait Analysis Dashboard",
+    page_icon="🏃‍♂️"
+)
+
+# --- Custom CSS for Theming ---
+CUSTOM_CSS = """
+/* General Theme */
+body {
+    font-family: 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+}
+
+/* Main background */
+[data-testid="stAppViewContainer"] {
+    background-color: #F0F2F6;
+}
+
+/* Card styles */
+[data-testid="stVerticalBlock"] .st-emotion-cache-16txtl3 {
+    background-color: #FFFFFF;
+    border: 1px solid #E0E0E0;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.04);
+}
+
+/* Sidebar style */
+[data-testid="stSidebar"] {
+    background-color: #FFFFFF;
+}
+
+/* Title and Headers */
+h1, h2, h3 {
+    color: #1a5276; 
+}
+
+/* Custom boxes for summary section */
+.summary-box {
+    padding: 1rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+    color: #333;
+}
+.normal-box {
+    background-color: #e8f5e9; /* Light green */
+    border-left: 5px solid #66bb6a;
+}
+.monitor-box {
+    background-color: #fff3e0; /* Light yellow */
+    border-left: 5px solid #ffa726;
+}
+.rec-box {
+    background-color: #e3f2fd; /* Light blue */
+    border-left: 5px solid #42a5f5;
+}
+"""
+st.markdown(f'<style>{CUSTOM_CSS}</style>', unsafe_allow_html=True)
+
+
+# --- Configuration & Data Generation (same as before) ---
 VIDEO_1_PATH = "video_1.mp4"
 VIDEO_2_PATH = "video_2.mp4"
-VIDEO_DURATION_SECONDS = 6.0  # Must be a float
-FPS = 30 # Frames per second for data generation and playback simulation
+VIDEO_DURATION_SECONDS = 6.0
+FPS = 30
 
-# --- Data Generation ---
 @st.cache_data
 def generate_gait_data(duration, num_points):
     """Generates synthetic gait data for plotting."""
@@ -21,8 +80,8 @@ def generate_gait_data(duration, num_points):
     w = 2 * np.pi / gait_cycle_duration
     right_hip = -18 * np.cos(w * t) + 12
     left_hip = -18 * np.cos(w * t + np.pi) + 12
-    right_knee = 35 * (1 - np.cos(w * t + 0.2)) / 2 + 15 * np.sin(w * t - 0.5)**4
-    left_knee = 35 * (1 - np.cos(w * t + np.pi + 0.2)) / 2 + 15 * np.sin(w * t + np.pi - 0.5)**4
+    right_knee = 35 * (1 - np.cos(w * t + 0.2)) / 2 + 15 * np.sin(w * t - 0.5)**4 + 5
+    left_knee = 35 * (1 - np.cos(w * t + np.pi + 0.2)) / 2 + 15 * np.sin(w * t + np.pi - 0.5)**4 + 5
     right_ankle = 12 * np.sin(w * t - np.pi * 0.45) - 5
     left_ankle = 12 * np.sin(w * t + np.pi - np.pi * 0.45) - 5
     data = pd.DataFrame({
@@ -32,129 +91,154 @@ def generate_gait_data(duration, num_points):
     }).set_index("Time")
     return data
 
-# --- AI Insights ---
-def get_ai_insights(t):
-    cycle_time = t % 2.2
-    if 0 <= cycle_time < 0.2: return {"title": "Right Heel Strike", "finding": "Initiating stance phase on the right leg. Hip is flexed (~25°), knee is near full extension to accept weight.", "status": "Normal"}
-    elif 0.2 <= cycle_time < 0.8: return {"title": "Left Swing Phase", "finding": "Left leg is in swing. Peak knee flexion (~65°) and ankle dorsiflexion ensure adequate ground clearance.", "status": "Normal"}
-    elif 0.8 <= cycle_time < 1.3: return {"title": "Right Push-Off", "finding": "Powerful ankle plantarflexion detected, propelling the body forward. This indicates good propulsive force.", "status": "Good"}
-    elif 1.3 <= cycle_time < 1.5: return {"title": "Left Heel Strike", "finding": "Symmetry check: Left leg makes initial contact. Angles show good bilateral symmetry compared to the right.", "status": "Symmetrical"}
-    elif 1.5 <= cycle_time < 2.0: return {"title": "Right Swing Phase", "finding": "Right leg is now in swing. Hip flexion is increasing towards its peak.", "status": "Normal"}
-    else: return {"title": "Overall Assessment", "finding": "Gait pattern appears stable and rhythmic. Cadence is estimated at ~110 steps/minute.", "status": "Stable"}
-
-# --- MEMORY-EFFICIENT FRAME EXTRACTION ---
-# This function seeks to a specific time, reads one frame, and releases.
-# It uses minimal memory, preventing crashes on Streamlit Cloud.
 def get_frame_at_time(video_path, time_sec):
     cap = cv2.VideoCapture(video_path)
-    # Set the time position in milliseconds
     cap.set(cv2.CAP_PROP_POS_MSEC, time_sec * 1000)
     ret, frame = cap.read()
     cap.release()
-    if ret:
-        return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    if ret: return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     return None
 
 # --- Main Application ---
-st.set_page_config(layout="wide", page_title="Gait Analysis Dashboard")
+st.title("Gait Analysis Dashboard")
 
-if not os.path.exists(VIDEO_1_PATH) or not os.path.exists(VIDEO_2_PATH):
-    st.error(f"Video files not found! Please make sure '{VIDEO_1_PATH}' and '{VIDEO_2_PATH}' are in the same directory.")
-    st.stop()
-
-st.title("🏃‍♂️ Real-Time Gait Analysis Dashboard")
-
+# --- Initialize Session State ---
 if 'play' not in st.session_state: st.session_state.play = False
 if 'time' not in st.session_state: st.session_state.time = 0.0
 
-st.sidebar.header("Controls")
-if st.sidebar.button("▶️ Play" if not st.session_state.play else "⏸️ Pause"):
-    st.session_state.play = not st.session_state.play
+# --- Sidebar Controls ---
+with st.sidebar:
+    st.header("Controls")
+    if st.button("▶️ Play / ⏸️ Pause", use_container_width=True):
+        st.session_state.play = not st.session_state.play
 
-if st.sidebar.button("🔄 Reset"):
-    st.session_state.play = False
-    st.session_state.time = 0.0
-    st.rerun()
+    if st.button("🔄 Reset", use_container_width=True):
+        st.session_state.play = False
+        st.session_state.time = 0.0
+        st.rerun()
 
-time_slider = st.sidebar.slider("Timeline (seconds)", 0.0, VIDEO_DURATION_SECONDS, st.session_state.time, 0.01)
-if time_slider != st.session_state.time:
-    st.session_state.time = time_slider
-    st.session_state.play = False
-
-gait_data = generate_gait_data(VIDEO_DURATION_SECONDS, int(VIDEO_DURATION_SECONDS * FPS))
-current_data_index = min(int(st.session_state.time * FPS), len(gait_data) - 1)
-current_data_point = gait_data.iloc[current_data_index]
-
-main_cols = st.columns([2, 1])
-
-with main_cols[0]:
-    vid_cols = st.columns(2)
+    time_slider = st.slider("Timeline (seconds)", 0.0, VIDEO_DURATION_SECONDS, st.session_state.time, 0.01)
+    if time_slider != st.session_state.time:
+        st.session_state.time = time_slider
+        st.session_state.play = False
     
-    # Get frames on-demand instead of pre-loading
-    frame1 = get_frame_at_time(VIDEO_1_PATH, st.session_state.time)
-    frame2 = get_frame_at_time(VIDEO_2_PATH, st.session_state.time)
+    st.subheader("Current Data")
+    gait_data = generate_gait_data(VIDEO_DURATION_SECONDS, int(VIDEO_DURATION_SECONDS * FPS))
+    current_data_index = min(int(st.session_state.time * FPS), len(gait_data) - 1)
+    current_data_point = gait_data.iloc[current_data_index]
 
-    with vid_cols[0]:
-        st.subheader("Original Video")
-        if frame1 is not None:
-            st.image(frame1)
-        else:
-            st.warning("Could not load frame from original video.")
-    with vid_cols[1]:
-        st.subheader("3D Motion Overlay")
-        if frame2 is not None:
-            st.image(frame2)
-        else:
-            st.warning("Could not load frame from 3D overlay video.")
-
-    st.markdown("---")
-    st.subheader("Joint Angle Plots")
-
-    plot_data_until_now = gait_data[gait_data.index <= st.session_state.time]
-    
-    fig, axs = plt.subplots(2, 3, figsize=(15, 6))
-    fig.tight_layout(pad=4.0)
-
-    plot_titles = [
-        "Left Hip Flexion", "Right Hip Flexion", "Left Knee Flexion",
-        "Right Knee Flexion", "Left Ankle Dorsiflexion", "Right Ankle Dorsiflexion"
-    ]
-    
-    for i, title in enumerate(plot_titles):
-        ax = axs[i // 3, i % 3]
-        ax.plot(gait_data.index, gait_data[title], color='gray', linestyle='--', alpha=0.5)
-        if not plot_data_until_now.empty:
-            ax.plot(plot_data_until_now.index, plot_data_until_now[title], color='dodgerblue', linewidth=2)
-            ax.plot(plot_data_until_now.index[-1], plot_data_until_now[title].iloc[-1], 'o', color='red', markersize=8)
-        
-        ax.set_title(title)
-        ax.set_xlabel("Time (s)")
-        ax.set_ylabel("Angle (°)")
-        ax.set_xlim([0, VIDEO_DURATION_SECONDS])
-        ax.grid(True, linestyle=':', alpha=0.6)
-
-    st.pyplot(fig)
-
-with main_cols[1]:
-    st.subheader("🤖 AI Gait Insights")
-    insights = get_ai_insights(st.session_state.time)
-    status_color = {"Normal": "blue", "Symmetrical": "green", "Good": "green", "Stable": "violet"}.get(insights["status"], "gray")
-    with st.container(border=True):
-        st.info(f"**Phase:** {insights['title']}")
-        st.markdown(f"**Finding:** {insights['finding']}")
-        st.markdown(f"**Status:** :{status_color}[{insights['status']}]")
-
-    st.markdown("---")
-    st.subheader("Current Data Points")
     metric_cols = st.columns(2)
-    metric_cols[0].metric("Left Knee Flexion", f"{current_data_point['Left Knee Flexion']:.1f}°")
-    metric_cols[1].metric("Right Knee Flexion", f"{current_data_point['Right Knee Flexion']:.1f}°")
-    metric_cols[0].metric("Left Hip Flexion", f"{current_data_point['Left Hip Flexion']:.1f}°")
-    metric_cols[1].metric("Right Hip Flexion", f"{current_data_point['Right Hip Flexion']:.1f}°")
-    metric_cols[0].metric("Left Ankle Angle", f"{current_data_point['Left Ankle Dorsiflexion']:.1f}°")
-    metric_cols[1].metric("Right Ankle Angle", f"{current_data_point['Right Ankle Dorsiflexion']:.1f}°")
+    metric_cols[0].metric("L. Knee", f"{current_data_point['Left Knee Flexion']:.1f}°")
+    metric_cols[1].metric("R. Knee", f"{current_data_point['Right Knee Flexion']:.1f}°")
+    metric_cols[0].metric("L. Hip", f"{current_data_point['Left Hip Flexion']:.1f}°")
+    metric_cols[1].metric("R. Hip", f"{current_data_point['Right Hip Flexion']:.1f}°")
+    metric_cols[0].metric("L. Ankle", f"{current_data_point['Left Ankle Dorsiflexion']:.1f}°")
+    metric_cols[1].metric("R. Ankle", f"{current_data_point['Right Ankle Dorsiflexion']:.1f}°")
 
-# --- Playback Loop ---
+
+# --- Main Layout ---
+top_cols = st.columns(2, gap="large")
+
+with top_cols[0]:
+    with st.container(border=True):
+        st.subheader("⚡ 3D Mesh Overlay")
+        st.caption("Real-time joint tracking and movement analysis")
+        
+        frame = get_frame_at_time(VIDEO_2_PATH, st.session_state.time)
+        if frame is not None:
+            st.image(frame)
+        
+        status_cols = st.columns(2)
+        status_cols[0].metric("Hip Joints", "Normal", delta="Stable")
+        status_cols[1].metric("Knee Joints", "Normal", delta="Symmetrical")
+        status_cols[0].metric("Ankle Joints", "Mild Asymmetry", delta="-1.2° Diff", delta_color="inverse")
+        status_cols[1].metric("Spine", "Stable", delta="Good")
+
+
+with top_cols[1]:
+    with st.container(border=True):
+        st.subheader("📈 Joint Angle Analysis")
+        st.caption("Real-time joint movement patterns and clinical indicators")
+        
+        plot_titles = [
+            "Left Hip Flexion", "Right Hip Flexion", "Left Knee Flexion",
+            "Right Knee Flexion", "Left Ankle Dorsiflexion", "Right Ankle Dorsiflexion"
+        ]
+        selected_joint = st.selectbox("Select Joint to Analyze", plot_titles, index=2)
+        
+        plot_data_until_now = gait_data[gait_data.index <= st.session_state.time]
+        
+        fig, ax = plt.subplots(figsize=(10, 4))
+        
+        # Plot styling to match the image
+        full_data = gait_data[selected_joint]
+        ax.plot(full_data.index, full_data, color='#28A745', alpha=0.2, linewidth=1)
+        ax.fill_between(full_data.index, full_data, color='#D4EDDA', alpha=0.5)
+
+        if not plot_data_until_now.empty:
+            partial_data = plot_data_until_now[selected_joint]
+            ax.plot(partial_data.index, partial_data, color='#28A745', linewidth=2.5)
+            ax.plot(partial_data.index[-1], partial_data.iloc[-1], 'o', color='#E74C3C', markersize=8)
+
+        # Aesthetics
+        ax.set_title(f"{selected_joint} Pattern", fontsize=14)
+        ax.set_ylabel("Angle (degree)")
+        ax.set_xlabel("Time (s)")
+        ax.set_ylim(min(gait_data[selected_joint]) - 10, max(gait_data[selected_joint]) + 10)
+        ax.set_xlim(0, VIDEO_DURATION_SECONDS)
+        ax.grid(True, which='major', axis='y', linestyle='--', linewidth=0.5)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+
+        st.pyplot(fig)
+        
+        st.info(f"**Clinical Interpretation:** Excellent {selected_joint.split(' ')[1]} range of motion. Consistent pattern indicates functional stride mechanics.", icon="💡")
+
+
+# --- Clinical Summary & Recommendations ---
+with st.container(border=True):
+    st.subheader("ℹ️ Clinical Summary & Recommendations")
+    summary_cols = st.columns(3, gap="medium")
+    
+    with summary_cols[0]:
+        st.markdown("""
+        <div class="summary-box normal-box">
+            <strong>✅ Normal Patterns</strong>
+            <ul>
+                <li>Hip flexion-extension rhythm</li>
+                <li>Knee range of motion (65°)</li>
+                <li>Pelvic stability</li>
+                <li>Spinal coordination</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with summary_cols[1]:
+        st.markdown("""
+        <div class="summary-box monitor-box">
+            <strong>⚠️ Monitor</strong>
+            <ul>
+                <li>Ankle variability</li>
+                <li>Slight asymmetry in rotation</li>
+                <li>Gait cycle consistency</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with summary_cols[2]:
+        st.markdown("""
+        <div class="summary-box rec-box">
+            <strong>🔬 Recommendations</strong>
+            <ul>
+                <li>Continue monitoring</li>
+                <li>Balance assessment</li>
+                <li>Follow-up in 6 months</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+
+
+# --- Playback Loop Logic ---
 if st.session_state.play:
     if st.session_state.time >= VIDEO_DURATION_SECONDS:
         st.session_state.play = False
@@ -163,5 +247,5 @@ if st.session_state.play:
         st.session_state.time += time_increment
         st.session_state.time = min(st.session_state.time, VIDEO_DURATION_SECONDS)
 
-    time.sleep(0.02) # A slightly longer sleep can sometimes help stability
+    time.sleep(0.02)
     st.rerun()
